@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IIT KGP Air Quality - Holographic Interface</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ccapture.js/1.1.0/CCapture.all.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+        
+        :root {
+            --bg-color: #000005;
+            --layer-bg: rgba(10, 10, 20, 0.45);
+            --border-color: rgba(108, 122, 255, 0.3);
+            --glow-color: rgba(108, 122, 255, 0.2);
+            --text-heading: #e0e0ff;
+            --text-body: #a0a0c0;
+            --data-color: #00f2ff;
+            --integration-color: #a259ff;
+            --actions-color: #00ffc3;
+            
+            /* Mouse-driven variables */
+            --mouse-x: 50%;
+            --mouse-y: 50%;
+            --rotate-x: 0deg;
+            --rotate-y: 0deg;
+        }
+
+        /* --- General Setup & Background --- */
+
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-heading);
+            overflow: hidden;
+        }
+
+        #particle-canvas {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: 0;
+            opacity: 0.7;
+        }
+        
+        .presentation-container {
+            width: 360px;
+            height: 640px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            z-index: 1;
+            transition: transform 0.1s ease-out;
+            transform: rotateX(var(--rotate-y)) rotateY(var(--rotate-x));
+            transform-style: preserve-3d;
+        }
+
+        /* --- Core Layer Styling --- */
+
+        .stage {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            perspective: 3000px;
+            transform-style: preserve-3d;
+        }
+
+        .layer-wrapper {
+            position: absolute;
+            width: 100%; height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            opacity: 0;
+            transform: scale(0.8) translateZ(-200px);
+            transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        
+        .layer {
+            width: 280px;
+            height: 280px;
+            transform-style: preserve-3d;
+            position: relative;
+            transition: transform 1.8s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        /* Holographic Card Effect */
+        .holographic-card {
+            position: absolute;
+            width: 100%; height: 100%;
+            border-radius: 28px;
+            transform-style: preserve-3d;
+            background: var(--layer-bg);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid var(--border-color);
+            box-shadow: 0 0 20px 0 var(--glow-color), inset 0 0 15px 0 var(--glow-color);
+        }
+        
+        .holographic-card::before { /* Main holo sheen */
+            content: '';
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            border-radius: 28px;
+            background: radial-gradient(circle at var(--mouse-x) var(--mouse-y), rgba(255, 255, 255, 0.4), transparent 30%);
+            opacity: 0.3;
+            mix-blend-mode: screen;
+            transition: background-position 0.1s ease-out;
+        }
+        
+        .holographic-card .content {
+            width: 100%; height: 100%;
+            display: flex; justify-content: center; align-items: center;
+            transform: translateZ(50px); /* Lifts content off the card */
+        }
+        
+        /* --- Layer-Specific Colors & Icons --- */
+        
+        #data-layer .holographic-card { --border-color: rgba(0, 242, 255, 0.4); --glow-color: rgba(0, 242, 255, 0.2); }
+        #integrations-layer .holographic-card { --border-color: rgba(162, 89, 255, 0.4); --glow-color: rgba(162, 89, 255, 0.2); }
+        #actions-layer .holographic-card { --border-color: rgba(0, 255, 195, 0.4); --glow-color: rgba(0, 255, 195, 0.2); }
+        
+        #data-layer .description h3 { color: var(--data-color); }
+        #integrations-layer .description h3 { color: var(--integration-color); }
+        #actions-layer .description h3 { color: var(--actions-color); }
+
+        .layer-icon path {
+            stroke-dasharray: 1000;
+            stroke-dashoffset: 1000;
+        }
+        .run-icon-animation .layer-icon path {
+            animation: draw-in 2s cubic-bezier(0.16, 1, 0.3, 1) forwards 0.5s;
+        }
+        @keyframes draw-in { to { stroke-dashoffset: 0; } }
+        
+        /* --- Text & Description --- */
+
+        .description {
+            position: absolute;
+            bottom: 60px;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.5s;
+            width: 90%;
+            text-align: center;
+        }
+        .description h3 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin: 0 0 12px 0;
+            letter-spacing: -0.5px;
+        }
+        .description p {
+            font-size: 1rem; 
+            color: var(--text-body);
+            margin: 0 auto; 
+            line-height: 1.6; 
+            max-width: 300px;
+        }
+        
+        /* --- Final Card --- */
+
+        .final-tool-card {
+            width: 95%;
+            transform-style: preserve-3d;
+            opacity: 0;
+            position: absolute;
+            transform: translateZ(-500px) scale(0.5);
+        }
+        .final-tool-card .holographic-card {
+             min-height: 240px; padding: 40px 20px;
+        }
+        .final-tool-card .glow {
+            position: absolute; width: 100%; height: 100%;
+            border-radius: 28px;
+            background: linear-gradient(135deg, var(--data-color), var(--integration-color), var(--actions-color));
+            filter: blur(80px); opacity: 0.6;
+            animation: rotate-glow 15s infinite linear;
+            z-index: -1;
+        }
+        @keyframes rotate-glow { to { transform: rotate(360deg); } }
+        .final-tool-card h2 { font-size: 2rem; font-weight: 800; margin: 0; letter-spacing: -1.5px; }
+        .final-tool-card .tagline { font-size: 1.1rem; margin-top: 16px; color: var(--text-body); }
+        
+        /* --- ANIMATION CONTROL --- */
+        
+        .stage.run-data #data-layer-wrapper,
+        .stage.run-integrations #integrations-layer-wrapper,
+        .stage.run-actions #actions-layer-wrapper { opacity: 1; transform: scale(1) translateZ(0); }
+        
+        .stage.run-data #data-layer-wrapper .description,
+        .stage.run-integrations #integrations-layer-wrapper .description,
+        .stage.run-actions #actions-layer-wrapper .description { opacity: 1; transform: translateY(0); }
+        
+        .stage.run-merge .description { opacity: 0 !important; }
+        .stage.run-merge .layer-wrapper {
+            transition: transform 1.5s cubic-bezier(0.68, -0.6, 0.32, 1.6), opacity 1s ease-out;
+            transform: translateZ(600px) scale(0);
+            opacity: 0;
+        }
+        
+        .stage.run-final .final-tool-card {
+            opacity: 1;
+            transition: all 1.2s cubic-bezier(0.16, 1, 0.3, 1) 0.5s;
+            transform: translateZ(100px) scale(1);
+        }
+        
+    </style>
+</head>
+<body>
+    <canvas id="particle-canvas"></canvas>
+
+    <div class="presentation-container">
+        <div id="animationStage" class="stage">
+            
+            <div id="data-layer-wrapper" class="layer-wrapper">
+                <div id="data-layer" class="layer">
+                    <div class="holographic-card">
+                        <div class="content">
+                            <svg class="layer-icon" width="120" height="120" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3.27368 14.7263C2.42868 12.3613 2.85968 9.70935 4.41468 7.64135C5.96968 5.57335 8.44868 4.24635 11.1227 4.04135C13.7967 3.83735 16.4547 4.77935 18.3617 6.64135C20.2687 8.50335 21.2297 11.1093 20.9817 13.7843C20.7337 16.4583 19.2997 18.9103 17.0787 20.4073C14.8577 21.9043 12.0837 22.2593 9.53968 21.3693" stroke="var(--data-color)" stroke-width="1.5" stroke-linecap="round"/><path d="M4.5 10.5C4.5 10.5 6.5 6.5 12 6.5C17.5 6.5 19.5 10.5 19.5 10.5" stroke="var(--data-color)" stroke-width="1.5" stroke-linecap="round"/><path d="M7.5 15.5C7.5 15.5 9 13.5 12 13.5C15 13.5 16.5 15.5 16.5 15.5" stroke="var(--data-color)" stroke-width="1.5" stroke-linecap="round"/></svg>
+                        </div>
+                    </div>
+                </div>
+                <div class="description"><h3>Real-Time Data</h3><p>Access live CPCB sensor data covering over 250 cities nationwide.</p></div>
+            </div>
+
+            <div id="integrations-layer-wrapper" class="layer-wrapper">
+                <div id="integrations-layer" class="layer">
+                     <div class="holographic-card">
+                        <div class="content">
+                            <svg class="layer-icon" width="120" height="120" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M9 12C9 13.3807 7.88071 14.5 6.5 14.5C5.11929 14.5 4 13.3807 4 12C4 10.6193 5.11929 9.5 6.5 9.5C7.88071 9.5 9 10.6193 9 12Z" stroke="var(--integration-color)" stroke-width="1.5"/><path d="M14.5 4C13.1193 4 12 5.11929 12 6.5C12 7.88071 13.1193 9 14.5 9C15.8807 9 17 7.88071 17 6.5C17 5.11929 15.8807 4 14.5 4Z" stroke="var(--integration-color)" stroke-width="1.5"/><path d="M20 17.5C18.6193 17.5 17.5 18.6193 17.5 20C17.5 21.3807 18.6193 22.5 20 22.5C21.3807 22.5 22.5 21.3807 22.5 20C22.5 18.6193 21.3807 17.5 20 17.5Z" stroke="var(--integration-color)" stroke-width="1.5"/><path d="M8.29291 10.7071L12.7929 6.20712" stroke="var(--integration-color)" stroke-width="1.5" stroke-linecap="round"/><path d="M12.7929 7.79289L17.7929 18.2929" stroke="var(--integration-color)" stroke-width="1.5" stroke-linecap="round"/></svg>
+                        </div>
+                    </div>
+                </div>
+                <div class="description"><h3>Powerful Integrations</h3><p>Seamlessly connect your favorite analytics and reporting tools with the data stream.</p></div>
+            </div>
+
+            <div id="actions-layer-wrapper" class="layer-wrapper">
+                <div id="actions-layer" class="layer">
+                     <div class="holographic-card">
+                        <div class="content">
+                            <svg class="layer-icon" width="100" height="100" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M14 20L16.2951 17.7049C18.2435 15.7565 18.2435 12.6065 16.2951 10.6581L13.3419 7.70487C11.3935 5.75646 8.24354 5.75646 6.29513 7.70487L4 10" stroke="var(--actions-color)" stroke-width="1.5" stroke-linecap="round"/><path d="M10 4L7.70487 6.29513C5.75646 8.24354 5.75646 11.3935 7.70487 13.3419L10.6581 16.2951C12.6065 18.2435 15.7565 18.2435 17.7049 16.2951L20 14" stroke="var(--actions-color)" stroke-width="1.5" stroke-linecap="round"/></svg>
+                        </div>
+                    </div>
+                </div>
+                <div class="description"><h3>Insightful Actions</h3><p>Utilize built-in tools for all-in-one data analysis, visualization, and forecasting.</p></div>
+            </div>
+
+            <div class="final-tool-card">
+                 <div class="holographic-card">
+                    <div class="glow"></div>
+                    <div class="content">
+                        <div>
+                           <h2>IIT KGP Air Quality Tool</h2>
+                           <p class="tagline">Transforming Environmental Data into Actionable Intelligence.</p>
+                        </div>
+                    </div>
+                 </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const stage = document.getElementById('animationStage');
+        const presentation = document.querySelector('.presentation-container');
+        const animationTotalDuration = 9500;
+
+        // --- Main Animation Sequencer ---
+        function runAnimation() {
+            return new Promise(resolve => {
+                stage.className = 'stage';
+
+                setTimeout(() => { stage.classList.add('run-data'); stage.classList.add('run-icon-animation'); }, 500);
+                setTimeout(() => stage.classList.remove('run-data'), 2500);
+                
+                setTimeout(() => stage.classList.add('run-integrations'), 2800);
+                setTimeout(() => stage.classList.remove('run-integrations'), 4800);
+                
+                setTimeout(() => stage.classList.add('run-actions'), 5100);
+                setTimeout(() => stage.classList.remove('run-actions'), 7100);
+                
+                setTimeout(() => stage.classList.add('run-merge'), 7400);
+                setTimeout(() => stage.classList.remove('run-icon-animation'), 7400);
+
+                setTimeout(() => {
+                    stage.classList.remove('run-merge');
+                    stage.classList.add('run-final');
+                }, 8500);
+
+                setTimeout(resolve, animationTotalDuration);
+            });
+        }
+        
+        // --- Interactive Parallax Effect ---
+        document.body.addEventListener('mousemove', e => {
+            const rect = presentation.getBoundingClientRect();
+            const centerX = rect.left + rect.width / 2;
+            const centerY = rect.top + rect.height / 2;
+            
+            const mouseX = e.clientX - centerX;
+            const mouseY = e.clientY - centerY;
+            
+            const rotateXVal = (mouseY / (window.innerHeight / 2)) * -10; // Invert for natural feel
+            const rotateYVal = (mouseX / (window.innerWidth / 2)) * 10;
+            
+            document.documentElement.style.setProperty('--rotate-x', `${rotateYVal}deg`);
+            document.documentElement.style.setProperty('--rotate-y', `${rotateXVal}deg`);
+            
+            const holoX = (e.clientX / window.innerWidth) * 100;
+            const holoY = (e.clientY / window.innerHeight) * 100;
+            document.documentElement.style.setProperty('--mouse-x', `${holoX}%`);
+            document.documentElement.style.setProperty('--mouse-y', `${holoY}%`);
+        });
+
+        // --- Generative Particle Nebula Background ---
+        const canvas = document.getElementById('particle-canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        let particles = [];
+        const numParticles = Math.floor(canvas.width / 25);
+
+        class Particle {
+            constructor() {
+                this.x = Math.random() * canvas.width;
+                this.y = Math.random() * canvas.height;
+                this.size = Math.random() * 1.5 + 0.5;
+                this.speedX = Math.random() * 1 - 0.5;
+                this.speedY = Math.random() * 1 - 0.5;
+            }
+            update() {
+                if (this.x > canvas.width || this.x < 0) this.speedX *= -1;
+                if (this.y > canvas.height || this.y < 0) this.speedY *= -1;
+                this.x += this.speedX;
+                this.y += this.speedY;
+            }
+            draw() {
+                ctx.fillStyle = 'rgba(162, 89, 255, 0.8)';
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        function initParticles() {
+            for (let i = 0; i < numParticles; i++) {
+                particles.push(new Particle());
+            }
+        }
+
+        function handleParticles() {
+            for (let i = 0; i < particles.length; i++) {
+                particles[i].update();
+                particles[i].draw();
+                for (let j = i; j < particles.length; j++) {
+                    const dx = particles[i].x - particles[j].x;
+                    const dy = particles[i].y - particles[j].y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    if (distance < 100) {
+                        ctx.beginPath();
+                        ctx.strokeStyle = `rgba(162, 89, 255, ${1 - distance / 100})`;
+                        ctx.lineWidth = 0.2;
+                        ctx.moveTo(particles[i].x, particles[j].x);
+                        ctx.lineTo(particles[j].x, particles[j].y);
+                        ctx.stroke();
+                    }
+                }
+            }
+        }
+
+        function animateParticles() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            handleParticles();
+            requestAnimationFrame(animateParticles);
+        }
+        
+        initParticles();
+        animateParticles();
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            particles = [];
+            initParticles();
+        });
+        
+        // --- Start Animation Loop ---
+        runAnimation();
+        setInterval(runAnimation, animationTotalDuration + 2000);
+    });
+    </script>
+</body>
+</html>
