@@ -18,5 +18,7 @@ The test opens the dashboard with Playwright and fails if there are console erro
 ## GitHub Pages
 
 The page is served from the `docs` folder and deployed by the workflow in
-`.github/workflows/deploy.yml`. In the repository **Settings → Pages** set the
-source to **GitHub Actions** so the workflow can publish the site.
+`.github/workflows/deploy.yml`. In the repository **Settings → Pages** enable
+the site and set the source to **GitHub Actions** so the workflow can publish
+it. For first-time setup, run the workflow with `enablement: true` to configure
+Pages automatically.
