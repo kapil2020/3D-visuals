@@ -8,6 +8,7 @@ Install dependencies and run the smoke test:
 
 ```bash
 npm install
+npx playwright install
 npm test
 ```
 
